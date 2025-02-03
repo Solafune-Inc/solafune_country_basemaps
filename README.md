@@ -1,7 +1,7 @@
 # solafune_country_basemaps
 Code for generating country scale cloudfree basemaps from Sentinel-2 imagery
 
-This is the accompanying code for the blogpost from Solafune here: **ADD LINK ONCE ARTICLE IS LIVE**
+This is the accompanying code for the blogpost from Solafune here: [blog](https://company.solafune.com/blog/building-country)
 
 Three scripts are in this repo:
 
