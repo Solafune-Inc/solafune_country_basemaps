@@ -128,7 +128,7 @@ def process_month(year, month, base_dir):
 
     print(f"Completed processing for {year}-{month:02d} in {time.time() - start_time:.2f} seconds.")
 
-if name == "__main__":
+if __name__ == '__main__':
 		base_dir = "data"
 		year = 2022
 		month = 5
