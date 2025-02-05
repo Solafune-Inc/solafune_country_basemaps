@@ -34,12 +34,14 @@ botswana_geojson = {
 botswana_shape = shape(botswana_geojson["features"][0]["geometry"])
 botswana_bbox = botswana_shape.bounds  # (minx, miny, maxx, maxy)
 
+
 def create_directory_structure(base_dir, year, month):
     """Create directory structure for a given year and month."""
     month_dir = os.path.join(base_dir, f"{year}", f"{month:02d}")
     for band in ["B03", "B02", "B04", "SCL"]:
         os.makedirs(os.path.join(month_dir, band), exist_ok=True)
     return month_dir
+
 
 def download_asset(item, asset_key, output_dir):
     asset = item.assets[asset_key]
@@ -68,6 +70,7 @@ def download_asset(item, asset_key, output_dir):
 
     return output_path
 
+
 def process_item(item, month_dir, progress_bars):
     asset_paths = {}
     for key in ["B02", "B03", "B04", "SCL"]:
@@ -75,6 +78,7 @@ def process_item(item, month_dir, progress_bars):
         asset_paths[key] = download_asset(item, key, asset_dir)
         progress_bars[key].update(1)
     return asset_paths
+
 
 def process_month(year, month, base_dir):
     print(f"\nProcessing data for {year}-{month:02d}")
@@ -105,7 +109,7 @@ def process_month(year, month, base_dir):
 
     print(f"Found {len(items)} items.")
 
-       # Set up progress bars
+    # Set up progress bars
     progress_bars = {
         "B02": tqdm(total=len(items), desc="Downloading B02", leave=True),
         "B03": tqdm(total=len(items), desc="Downloading B03", leave=True),
@@ -113,7 +117,7 @@ def process_month(year, month, base_dir):
         "SCL": tqdm(total=len(items), desc="Downloading SCL", leave=True),
     }
 
-        # Process items and download assets
+    # Process items and download assets
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
         futures = [
             executor.submit(process_item, item, month_dir, progress_bars)
@@ -126,10 +130,13 @@ def process_month(year, month, base_dir):
     for bar in progress_bars.values():
         bar.close()
 
-    print(f"Completed processing for {year}-{month:02d} in {time.time() - start_time:.2f} seconds.")
+    print(
+        f"Completed processing for {year}-{month:02d} in {time.time() - start_time:.2f} seconds."
+    )
 
-if __name__ == '__main__':
-		base_dir = "data"
-		year = 2022
-		month = 5
-		process_month(year, month, base_dir)
+
+if __name__ == "__main__":
+    base_dir = "data"
+    year = 2022
+    month = 5
+    process_month(year, month, base_dir)

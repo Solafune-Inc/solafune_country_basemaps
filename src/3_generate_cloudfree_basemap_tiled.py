@@ -14,7 +14,12 @@ from rasterio import transform as rio_transform
 # Explicitly enable exceptions for GDAL
 gdal.UseExceptions()
 
-def extract_geometries(input_directories: List[str], target_epsg: str = "EPSG:4326", num_processes: int = None) -> List[Dict]:
+
+def extract_geometries(
+    input_directories: List[str],
+    target_epsg: str = "EPSG:4326",
+    num_processes: int = None,
+) -> List[Dict]:
     """
     Extract geometry information from all GeoTIFF files in the input directories.
 
@@ -31,7 +36,11 @@ def extract_geometries(input_directories: List[str], target_epsg: str = "EPSG:43
 
     all_files = []
     for directory in input_directories:
-        files = [os.path.join(directory, f) for f in os.listdir(directory) if f.lower().endswith((".tif", ".tiff"))]
+        files = [
+            os.path.join(directory, f)
+            for f in os.listdir(directory)
+            if f.lower().endswith((".tif", ".tiff"))
+        ]
         all_files.extend(files)
 
     with multiprocessing.Pool(processes=num_processes) as pool:
@@ -46,6 +55,7 @@ def extract_geometries(input_directories: List[str], target_epsg: str = "EPSG:43
 
     # Filter out None values (failed processings)
     return [g for g in geometries if g is not None]
+
 
 def process_file(filepath: str, target_epsg: str) -> Dict:
     """
@@ -108,6 +118,7 @@ def process_file(filepath: str, target_epsg: str) -> Dict:
         # Close the dataset
         dataset = None
 
+
 def reproject_raster(input_path: str, target_epsg: str) -> bool:
     """
     Reproject a raster to the target EPSG and replace the original file.
@@ -144,7 +155,14 @@ def reproject_raster(input_path: str, target_epsg: str) -> bool:
     os.rename(temp_file, input_path)
 
     return True
-def create_cloud_mask(scl_file: str, tile_bbox: Tuple[float, float, float, float], target_epsg: str, tile_size: Tuple[int, int]) -> xr.DataArray:
+
+
+def create_cloud_mask(
+    scl_file: str,
+    tile_bbox: Tuple[float, float, float, float],
+    target_epsg: str,
+    tile_size: Tuple[int, int],
+) -> xr.DataArray:
     """
     Create a cloud mask from the SCL file.
 
@@ -160,16 +178,19 @@ def create_cloud_mask(scl_file: str, tile_bbox: Tuple[float, float, float, float
     with rioxarray.open_rasterio(scl_file) as scl:
         if scl.rio.crs.to_string() != target_epsg:
             scl = scl.rio.reproject(target_epsg)
-        
+
         scl = scl.rio.clip_box(*tile_bbox)
-        
+
         if scl.rio.shape != tile_size:
-            transform = rio_transform.from_bounds(*tile_bbox, tile_size[0], tile_size[1])
+            transform = rio_transform.from_bounds(
+                *tile_bbox, tile_size[0], tile_size[1]
+            )
             scl = scl.rio.reproject(target_epsg, shape=tile_size, transform=transform)
-        
+
         cloud_mask = (scl != 3) & (scl != 8) & (scl != 9)
         return cloud_mask.squeeze()  # Remove single-dimensional entries
-    
+
+
 def process_tile(
     tile_bbox: Tuple[float, float, float, float],
     intersecting_files: List[Dict],
@@ -199,7 +220,9 @@ def process_tile(
             with rioxarray.open_rasterio(file["filepath"]) as src:
                 # Check if the source data is valid
                 if src.isnull().all():
-                    print(f"Warning: File {file['filepath']} contains all null values. Skipping.")
+                    print(
+                        f"Warning: File {file['filepath']} contains all null values. Skipping."
+                    )
                     continue
 
                 # Reproject to target CRS if needed
@@ -211,16 +234,24 @@ def process_tile(
 
                 # Check if clipping resulted in any data
                 if clipped.isnull().all():
-                    print(f"Warning: Clipping {file['filepath']} resulted in all null values. Skipping.")
+                    print(
+                        f"Warning: Clipping {file['filepath']} resulted in all null values. Skipping."
+                    )
                     continue
 
                 # Ensure the clipped data has the correct dimensions
                 if clipped.rio.shape != tile_size:
-                    transform = rio_transform.from_bounds(*tile_bbox, tile_size[0], tile_size[1])
-                    clipped = clipped.rio.reproject(target_epsg, shape=tile_size, transform=transform)
+                    transform = rio_transform.from_bounds(
+                        *tile_bbox, tile_size[0], tile_size[1]
+                    )
+                    clipped = clipped.rio.reproject(
+                        target_epsg, shape=tile_size, transform=transform
+                    )
                 # Verify the shape after reprojection
                 if clipped.rio.shape != tile_size:
-                    print(f"Error: Reprojection of {file['filepath']} resulted in incorrect shape. Expected {tile_size}, got {clipped.rio.shape}. Skipping.")
+                    print(
+                        f"Error: Reprojection of {file['filepath']} resulted in incorrect shape. Expected {tile_size}, got {clipped.rio.shape}. Skipping."
+                    )
                     continue
 
                 # Set or match to reference data
@@ -230,16 +261,23 @@ def process_tile(
                     clipped = clipped.rio.reproject_match(reference_data)
 
                 # Create and apply cloud mask
-                scl_file = os.path.join(scl_directory, os.path.basename(file["filepath"]).replace("RGB_", ""))
+                scl_file = os.path.join(
+                    scl_directory,
+                    os.path.basename(file["filepath"]).replace("RGB_", ""),
+                )
                 if os.path.exists(scl_file):
-                    cloud_mask = create_cloud_mask(scl_file, tile_bbox, target_epsg, tile_size)
+                    cloud_mask = create_cloud_mask(
+                        scl_file, tile_bbox, target_epsg, tile_size
+                    )
                     # Dirty fix for a coordinate bug between cloud_mask and image_array
                     # Unfixable with rio.reproject_match
                     cloud_mask["x"] = clipped.x.values
                     cloud_mask["y"] = clipped.y.values
                     clipped = clipped.where(cloud_mask, other=np.nan)
                 else:
-                    print(f"Warning: SCL file not found for {file['filepath']}. Skipping cloud masking for this file.")
+                    print(
+                        f"Warning: SCL file not found for {file['filepath']}. Skipping cloud masking for this file."
+                    )
 
                 tile_data.append(clipped)
                 # print(f"Processed file {file['filepath']} #{count}")
@@ -254,7 +292,7 @@ def process_tile(
     stacked_data = xr.concat(tile_data, dim="source")
 
     # All zero values are considered nodata
-    stacked_data = stacked_data.where(stacked_data !=0, other=np.nan)
+    stacked_data = stacked_data.where(stacked_data != 0, other=np.nan)
     # Calculate mean across all valid data for each band separately
     mean_tile = stacked_data.mean(dim="source", skipna=True)
 
@@ -265,10 +303,13 @@ def process_tile(
 
     valid_percentage = (~mean_tile.isnull()).sum().item() / (mean_tile.size)
     if valid_percentage < 0.2:  # Less than 20% valid data
-        print(f"Warning: Resulting tile contains too few valid pixels ({valid_percentage:.2%}) for bbox {tile_bbox}")
+        print(
+            f"Warning: Resulting tile contains too few valid pixels ({valid_percentage:.2%}) for bbox {tile_bbox}"
+        )
         return None
 
     return mean_tile, valid_percentage
+
 
 def process_and_save_tile(args):
     """
@@ -280,22 +321,34 @@ def process_and_save_tile(args):
     Returns:
     str: A message indicating the tile has been processed and saved, or skipped if no valid data.
     """
-    (tile_bbox, tile_index, geometries, geoseries, target_epsg, tile_size, pixel_size, output_folder, scl_directory) = args
+    (
+        tile_bbox,
+        tile_index,
+        geometries,
+        geoseries,
+        target_epsg,
+        tile_size,
+        pixel_size,
+        output_folder,
+        scl_directory,
+    ) = args
 
-    
     # Create a box for the tile
     tile_box = box(*tile_bbox)
     tile_gs = gpd.GeoSeries([tile_box], crs=target_epsg)
 
     # Find intersecting geometries
     intersecting_indices = geoseries.intersects(tile_gs.iloc[0])
-    intersecting_files = [geometries[i] for i, intersects in enumerate(intersecting_indices) if intersects]
-
+    intersecting_files = [
+        geometries[i] for i, intersects in enumerate(intersecting_indices) if intersects
+    ]
 
     if not intersecting_files:
         return f"Skipped tile {tile_index + 1} (no intersecting files)"
 
-    return_value = process_tile(tile_bbox, intersecting_files, target_epsg, tile_size, scl_directory)
+    return_value = process_tile(
+        tile_bbox, intersecting_files, target_epsg, tile_size, scl_directory
+    )
 
     if return_value is None:
         mean_tile = None
@@ -311,8 +364,11 @@ def process_and_save_tile(args):
     output_file = os.path.join(output_folder, f"tile_{tile_index:04d}.tif")
     mean_tile.rio.to_raster(output_file)
 
-    print(f"Processed and saved tile {tile_index + 1} valid data {valid_percentage} (intersecting files: {len(intersecting_files)})")
+    print(
+        f"Processed and saved tile {tile_index + 1} valid data {valid_percentage} (intersecting files: {len(intersecting_files)})"
+    )
     return "Processed"
+
 
 def create_geoseries(geometries: List[Dict], target_epsg: str) -> gpd.GeoSeries:
     """
@@ -328,6 +384,7 @@ def create_geoseries(geometries: List[Dict], target_epsg: str) -> gpd.GeoSeries:
     bounds = [box(*geom["bbox"]) for geom in geometries]
     gs = gpd.GeoSeries(bounds, crs=geometries[0]["epsg"])
     return gs.to_crs(target_epsg)
+
 
 def calculate_mean_raster(
     geometries: List[Dict],
@@ -364,7 +421,17 @@ def calculate_mean_raster(
 
     # Prepare arguments for process_and_save_tile
     args_list = [
-        (tile_bbox, tile_index, geometries, geoseries, target_epsg, tile_size, pixel_size[0], output_folder, scl_directory)
+        (
+            tile_bbox,
+            tile_index,
+            geometries,
+            geoseries,
+            target_epsg,
+            tile_size,
+            pixel_size[0],
+            output_folder,
+            scl_directory,
+        )
         for tile_index, tile_bbox in enumerate(tiles)
     ]
 
@@ -412,6 +479,7 @@ def generate_tiles(
         x += tile_size_geo[0]
     return tiles
 
+
 def create_vrt(output_folder: str, vrt_filename: str):
     """
     Create a VRT file from all the GeoTIFF tiles in the output folder.
@@ -434,6 +502,7 @@ def create_vrt(output_folder: str, vrt_filename: str):
     print(f"Created VRT file: {vrt_path}")
     return vrt_path
 
+
 def main():
     input_directories = [
         "/datadisk3/botswana/data/2022/05/RGB",
@@ -441,7 +510,9 @@ def main():
     output_folder = "/datadisk3/botswana/data/2022/05/MEAN_RGB_TILED"
     scl_directory = "/datadisk3/botswana/data/2022/05/SCL"
     target_epsg = "EPSG:32735"  # UTM Zone 35S
-    num_processes = 10  # Set to a specific number if you don't want to use all CPU cores
+    num_processes = (
+        10  # Set to a specific number if you don't want to use all CPU cores
+    )
     tile_size = (5000, 5000)  # Size of each tile in pixels
     vrt_filename = "mean_rgb_mosaic.vrt"
 
@@ -475,8 +546,11 @@ def main():
     print("Creating VRT file...")
     create_vrt(output_folder, vrt_filename)
 
-    print(f"Mean RGB raster calculation with cloud masking complete. Output tiles saved in: {output_folder}")
+    print(
+        f"Mean RGB raster calculation with cloud masking complete. Output tiles saved in: {output_folder}"
+    )
     print(f"VRT file created: {os.path.join(output_folder, vrt_filename)}")
 
-if __name__ == "__main_":
-	main()
+
+if __name__ == "__main__":
+    main()
