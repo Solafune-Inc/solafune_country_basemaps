@@ -175,20 +175,39 @@ def create_cloud_mask(
     Returns:
     xr.DataArray: Cloud mask (True for clear pixels, False for cloudy pixels).
     """
-    with rioxarray.open_rasterio(scl_file) as scl:
-        if scl.rio.crs.to_string() != target_epsg:
-            scl = scl.rio.reproject(target_epsg)
+    try:
+        with rioxarray.open_rasterio(scl_file) as scl:
+            if scl.rio.crs.to_string() != target_epsg:
+                scl = scl.rio.reproject(target_epsg)
 
-        scl = scl.rio.clip_box(*tile_bbox)
+            scl = scl.rio.clip_box(*tile_bbox)
 
-        if scl.rio.shape != tile_size:
-            transform = rio_transform.from_bounds(
-                *tile_bbox, tile_size[0], tile_size[1]
-            )
-            scl = scl.rio.reproject(target_epsg, shape=tile_size, transform=transform)
+            if scl.rio.shape != tile_size:
+                transform = rio_transform.from_bounds(
+                    *tile_bbox, tile_size[0], tile_size[1]
+                )
+                scl = scl.rio.reproject(
+                    target_epsg, shape=tile_size, transform=transform
+                )
 
-        cloud_mask = (scl != 3) & (scl != 8) & (scl != 9)
-        return cloud_mask.squeeze()  # Remove single-dimensional entries
+            cloud_mask = (scl != 3) & (scl != 8) & (scl != 9)
+            return cloud_mask.squeeze()  # Remove single-dimensional entries
+
+    except Exception as e:
+        print(f"Could not open SCL file {scl_file}: {str(e)}")
+        # Create a DataArray with the correct size and coordinates
+        coords = {
+            "y": np.linspace(tile_bbox[3], tile_bbox[1], tile_size[0]),
+            "x": np.linspace(tile_bbox[0], tile_bbox[2], tile_size[1]),
+        }
+
+        # Create an all-True mask with the correct dimensions and CRS
+        cloud_mask = xr.DataArray(
+            np.ones(tile_size, dtype=bool), coords=coords, dims=["y", "x"]
+        )
+        cloud_mask.rio.write_crs(target_epsg, inplace=True)
+
+        return cloud_mask
 
 
 def process_tile(
